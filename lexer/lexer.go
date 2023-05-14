@@ -1,4 +1,4 @@
-package dotparser
+package lexer
 
 import (
 	"bufio"
@@ -20,6 +20,10 @@ const (
 	OPEN_SQUARE_BRACKET
 	CLOSE_SQUARE_BRACKET
 	EQUAL
+
+	// Two-char tokens
+	ARC
+	DIRECTED_ARC
 
 	// Literals
 	ID
@@ -50,68 +54,89 @@ type Position struct {
 }
 
 type Lexer struct {
-	position Position
-	reader   *bufio.Reader
+	startPosition   Position
+	currentPosition Position
+	reader          *bufio.Reader
 }
 
 func New(reader io.Reader) *Lexer {
 	return &Lexer{
-		position: Position{line: 1, column: 1},
-		reader:   bufio.NewReader(reader),
+		startPosition:   Position{line: 1, column: 0},
+		currentPosition: Position{line: 1, column: 0},
+		reader:          bufio.NewReader(reader),
 	}
 }
 
 func (lexer *Lexer) Lex() (Position, Token, Lexeme) {
 	// keep looping until we return a token
+	lexer.startPosition = lexer.currentPosition
 	for {
 		char, err := lexer.advance()
 
 		if err != nil {
 			if err == io.EOF {
-				return lexer.position, EOF, ""
+				return lexer.currentPosition, EOF, ""
 			}
 			panic(err)
 		}
 
-		if unicode.IsSpace(char) {
+		if char == '\n' {
+			lexer.newLine()
+			lexer.startPosition = lexer.currentPosition
+			continue
+		} else if unicode.IsSpace(char) {
+			lexer.startPosition = lexer.currentPosition
 			continue
 		}
 
 		switch char {
 		// match single-char tokens
 		case '{':
-			lexer.addToken(OPEN_BRACE)
+			return lexer.addToken(OPEN_BRACE)
 		case '}':
-			lexer.addToken(CLOSE_BRACE)
+			return lexer.addToken(CLOSE_BRACE)
 		case ';':
-			lexer.addToken(SEMICOLON)
+			return lexer.addToken(SEMICOLON)
 		case ':':
-			lexer.addToken(COLON)
+			return lexer.addToken(COLON)
 		case ',':
-			lexer.addToken(COMMA)
+			return lexer.addToken(COMMA)
 		case '[':
-			lexer.addToken(OPEN_SQUARE_BRACKET)
+			return lexer.addToken(OPEN_SQUARE_BRACKET)
 		case ']':
-			lexer.addToken(CLOSE_SQUARE_BRACKET)
+			return lexer.addToken(CLOSE_SQUARE_BRACKET)
 		case '=':
-			lexer.addToken(EQUAL)
+			return lexer.addToken(EQUAL)
 		// match comments
 		case '#':
 			fallthrough
 		case '/':
 			lexer.matchComment(char)
+			lexer.startPosition = lexer.currentPosition
 		// identifiers
+		case '-':
+			nextChar, nextErr := lexer.peek()
+			if nextErr != nil {
+				panic(nextErr)
+			} else if nextChar == '-' {
+				lexer.advance()
+				return lexer.addToken(ARC)
+			} else if nextChar == '>' {
+				lexer.advance()
+				return lexer.addToken(DIRECTED_ARC)
+			}
+			fallthrough
 		case '"':
 			fallthrough
 		default:
-			lexer.matchIdentifier(char)
+			return lexer.matchIdentifier(char)
 		}
 	}
 }
 
 func (lexer *Lexer) matchComment(firstChar rune) error {
 	if firstChar == '#' {
-		if lexer.position.column != 1 {
+		if lexer.currentPosition.column != 1 {
 			return errors.New("")
 		} else {
 			lexer.skipLine()
@@ -139,19 +164,25 @@ func (lexer *Lexer) matchComment(firstChar rune) error {
 func (lexer *Lexer) matchKeyword(ide string) (Position, Token, Lexeme) {
 	token, exist := keywords[ide]
 	if exist {
-		return lexer.position, token, ""
+		return lexer.startPosition, token, ""
 	} else {
-		return lexer.position, ID, Lexeme(ide)
+		return lexer.startPosition, ID, Lexeme(ide)
 	}
 }
 
 func (lexer *Lexer) addToken(token Token) (Position, Token, Lexeme) {
-	return lexer.position, token, ""
+	return lexer.startPosition, token, ""
 }
 
 func (lexer *Lexer) advance() (char rune, err error) {
 	char, _, err = lexer.reader.ReadRune()
-	lexer.position.column += 1
+	lexer.currentPosition.column += 1
+	return
+}
+
+func (lexer *Lexer) peek() (char rune, err error) {
+	char, _, err = lexer.reader.ReadRune()
+	lexer.reader.UnreadRune()
 	return
 }
 
@@ -193,8 +224,8 @@ func (lexer *Lexer) skipMultiLineComment() {
 }
 
 func (lexer *Lexer) newLine() {
-	lexer.position.line++
-	lexer.position.column = 1
+	lexer.currentPosition.line += 1
+	lexer.currentPosition.column = 0
 }
 
 func (lexer *Lexer) matchString() (Position, Token, Lexeme) {
@@ -211,7 +242,7 @@ func (lexer *Lexer) matchString() (Position, Token, Lexeme) {
 		lexeme += string(char)
 	}
 
-	return lexer.position, ID, Lexeme(lexeme)
+	return lexer.startPosition, ID, Lexeme(lexeme)
 }
 
 func (lexer *Lexer) matchAlphaNumeric(char rune) (Position, Token, Lexeme) {
@@ -237,15 +268,6 @@ func (lexer *Lexer) matchNumeral(char rune) (Position, Token, Lexeme) {
 	var lexeme = string(char)
 	var canBeDot = true
 
-	var err error = nil
-	if char == '-' {
-		char, err = lexer.advance()
-		if err != nil {
-			lexer.reader.UnreadRune()
-			return lexer.position, ID, Lexeme(lexeme)
-		}
-	}
-
 	for {
 		char, err := lexer.advance()
 		if err != nil {
@@ -262,7 +284,7 @@ func (lexer *Lexer) matchNumeral(char rune) (Position, Token, Lexeme) {
 		}
 	}
 
-	return lexer.position, ID, Lexeme(lexeme)
+	return lexer.startPosition, ID, Lexeme(lexeme)
 }
 
 func (lexer *Lexer) matchIdentifier(char rune) (Position, Token, Lexeme) {
