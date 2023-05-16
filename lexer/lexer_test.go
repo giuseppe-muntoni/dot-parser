@@ -59,18 +59,18 @@ func printToken(t *testing.T, error string, position Position, token Token, lexe
 func testSingleToken(t *testing.T, input string, expectedToken Token, errorMsg string) {
 	var lexer = getLexer(input)
 
-	position, token, lexeme := lexer.Lex()
-	if token != expectedToken {
-		printToken(t, errorMsg, position, token, lexeme)
+	res := lexer.Next().Unwrap()
+	if res.token != expectedToken {
+		printToken(t, errorMsg, res.position, res.token, res.lexeme)
 	}
 }
 
 func testIdToken(t *testing.T, input string, expectedLexeme string, errorMsg string) {
 	var lexer = getLexer(input)
 
-	position, token, lexeme := lexer.Lex()
-	if token != ID || lexeme != Lexeme(expectedLexeme) {
-		printToken(t, errorMsg, position, token, lexeme)
+	res := lexer.Next().Unwrap()
+	if res.token != ID || res.lexeme != Lexeme(expectedLexeme) {
+		printToken(t, errorMsg, res.position, res.token, res.lexeme)
 	}
 }
 
@@ -258,11 +258,11 @@ func TestTokenizeExample(t *testing.T) {
 
 	var i = 0
 	for {
-		position, token, lexeme := lexer.Lex()
-		if position != expectedPositions[i] || token != expectedTokens[i] || lexeme != Lexeme(expectedLexemes[i]) {
-			printToken(t, "Error", position, token, lexeme)
+		res := lexer.Next().Unwrap()
+		if res.position != expectedPositions[i] || res.token != expectedTokens[i] || res.lexeme != Lexeme(expectedLexemes[i]) {
+			printToken(t, "Error", res.position, res.token, res.lexeme)
 		}
-		if token == EOF {
+		if res.token == EOF {
 			return
 		}
 

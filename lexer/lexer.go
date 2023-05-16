@@ -2,7 +2,9 @@ package lexer
 
 import (
 	"bufio"
+	"dot-parser/result"
 	"errors"
+	"fmt"
 	"io"
 	"unicode"
 )
@@ -67,227 +69,327 @@ func New(reader io.Reader) *Lexer {
 	}
 }
 
-func (lexer *Lexer) Lex() (Position, Token, Lexeme) {
+// Success
+type TokenData struct {
+	position Position
+	token    Token
+	lexeme   Lexeme
+}
+
+func (lexer *Lexer) makeTokenData(token Token, lexeme Lexeme) result.Result[TokenData] {
+	return result.Ok(
+		TokenData{
+			position: lexer.startPosition,
+			token:    token,
+			lexeme:   lexeme,
+		},
+	)
+}
+
+// Error
+type TokenError struct {
+	position Position
+	message  string
+}
+
+func (err *TokenError) Error() string {
+	return fmt.Sprintf(
+		"Lexing error at line %d column %d: %s",
+		err.position.line,
+		err.position.column,
+		err.message)
+}
+
+func (lexer *Lexer) makeTokenError(message string) result.Result[TokenData] {
+	return result.Err[TokenData](
+		&TokenError{
+			position: lexer.startPosition,
+			message:  message,
+		},
+	)
+}
+
+// Iterator
+type Iterator[T any] interface {
+	hasNext() bool
+	getNext() result.Result[T]
+}
+
+type TakeWhileIterator[T any] struct {
+	iterator  Iterator[T]
+	predicate func(T) bool
+	buffer    result.Result[T]
+}
+
+func (iter *TakeWhileIterator[T]) hasNext() bool {
+	if !iter.buffer.IsOk() {
+		if !iter.iterator.hasNext() {
+			return false
+		} else {
+			iter.buffer = iter.iterator.getNext()
+		}
+	}
+
+	return iter.predicate(iter.buffer.Unwrap())
+}
+
+func (iter *TakeWhileIterator[T]) getNext() result.Result[T] {
+	if !iter.hasNext() {
+		return result.Err[T](nil)
+	} else {
+		res := iter.buffer
+		iter.buffer = result.Err[T](nil)
+		return res
+	}
+}
+
+func takeWhile[T any](iter Iterator[T], predicate func(T) bool) Iterator[T] {
+	return &TakeWhileIterator[T]{
+		iterator:  iter,
+		predicate: predicate,
+	}
+}
+
+func last[T any](iter Iterator[T]) result.Result[T] {
+	for {
+		res := iter.getNext()
+		if !res.IsOk() {
+			return res
+		}
+	}
+}
+
+type LexerIterator struct {
+	lexer *Lexer
+}
+
+func (iter *LexerIterator) hasNext() bool {
+	return iter.lexer.peek().IsOk()
+}
+
+func (iter *LexerIterator) getNext() result.Result[rune] {
+	return iter.lexer.advance()
+}
+
+func (lexer *Lexer) Next() result.Result[TokenData] {
 	// keep looping until we return a token
 	lexer.startPosition = lexer.currentPosition
-	for {
-		char, err := lexer.advance()
 
-		if err != nil {
-			if err == io.EOF {
-				return lexer.currentPosition, EOF, ""
+	var iter Iterator[rune] = &LexerIterator{
+		lexer: lexer,
+	}
+
+	res := result.Err[TokenData](errors.New(""))
+	iter = takeWhile[rune](iter, func(char rune) bool {
+		if unicode.IsSpace(char) || char == '\n' {
+			return true
+		} else {
+			switch char {
+			// match single-char tokens
+			case '{':
+				res = lexer.makeTokenData(OPEN_BRACE, "")
+			case '}':
+				res = lexer.makeTokenData(CLOSE_BRACE, "")
+			case ';':
+				res = lexer.makeTokenData(SEMICOLON, "")
+			case ':':
+				res = lexer.makeTokenData(COLON, "")
+			case ',':
+				res = lexer.makeTokenData(COMMA, "")
+			case '[':
+				res = lexer.makeTokenData(OPEN_SQUARE_BRACKET, "")
+			case ']':
+				res = lexer.makeTokenData(CLOSE_SQUARE_BRACKET, "")
+			case '=':
+				res = lexer.makeTokenData(EQUAL, "")
+			// match comments
+			case '#':
+				fallthrough
+			case '/':
+				commentMatched := lexer.matchComment(char)
+				if commentMatched.IsOk() {
+					lexer.startPosition = lexer.currentPosition
+				} else {
+					_, err := commentMatched.Get()
+					res = lexer.makeTokenError(err.Error())
+				}
+			// identifiers
+			case '-':
+				res = result.FlatMap(lexer.peek(), func(char rune) result.Result[TokenData] {
+					switch char {
+					case '-':
+						lexer.advance()
+						return lexer.makeTokenData(ARC, "")
+					case '>':
+						lexer.advance()
+						return lexer.makeTokenData(DIRECTED_ARC, "")
+					default:
+						return lexer.matchIdentifier(char)
+					}
+				})
+			case '"':
+				fallthrough
+			default:
+				res = lexer.matchIdentifier(char)
 			}
-			panic(err)
 		}
+		return res.IsOk()
+	})
 
-		if char == '\n' {
-			lexer.newLine()
-			lexer.startPosition = lexer.currentPosition
-			continue
-		} else if unicode.IsSpace(char) {
-			lexer.startPosition = lexer.currentPosition
-			continue
-		}
+	last(iter)
 
-		switch char {
-		// match single-char tokens
-		case '{':
-			return lexer.addToken(OPEN_BRACE)
-		case '}':
-			return lexer.addToken(CLOSE_BRACE)
-		case ';':
-			return lexer.addToken(SEMICOLON)
-		case ':':
-			return lexer.addToken(COLON)
-		case ',':
-			return lexer.addToken(COMMA)
-		case '[':
-			return lexer.addToken(OPEN_SQUARE_BRACKET)
-		case ']':
-			return lexer.addToken(CLOSE_SQUARE_BRACKET)
-		case '=':
-			return lexer.addToken(EQUAL)
-		// match comments
-		case '#':
-			fallthrough
-		case '/':
-			lexer.matchComment(char)
-			lexer.startPosition = lexer.currentPosition
-		// identifiers
-		case '-':
-			nextChar, nextErr := lexer.peek()
-			if nextErr != nil {
-				panic(nextErr)
-			} else if nextChar == '-' {
-				lexer.advance()
-				return lexer.addToken(ARC)
-			} else if nextChar == '>' {
-				lexer.advance()
-				return lexer.addToken(DIRECTED_ARC)
-			}
-			fallthrough
-		case '"':
-			fallthrough
-		default:
-			return lexer.matchIdentifier(char)
+	return res
+}
+
+func (lexer *Lexer) matchComment(firstChar rune) result.Result[rune] {
+	switch firstChar {
+	case '*':
+		return lexer.skipMultiLineComment()
+	case '/':
+		return lexer.skipLine()
+	case '#':
+		if lexer.currentPosition.column == 1 {
+			return lexer.skipLine()
 		}
+		fallthrough
+	default:
+		return result.Err[rune](errors.New("invalid comment"))
 	}
 }
 
-func (lexer *Lexer) matchComment(firstChar rune) error {
-	if firstChar == '#' {
-		if lexer.currentPosition.column != 1 {
-			return errors.New("")
-		} else {
-			lexer.skipLine()
-			return nil
-		}
-	} else if firstChar == '/' {
-		char, err := lexer.advance()
-		if err != nil {
-			return errors.New("")
-		}
-		if char == '/' {
-			lexer.skipLine()
-			return nil
-		} else if char == '*' {
-			lexer.skipMultiLineComment()
-			return nil
-		} else {
-			return errors.New("")
-		}
-	} else {
-		return errors.New("")
-	}
-}
-
-func (lexer *Lexer) matchKeyword(ide string) (Position, Token, Lexeme) {
+func (lexer *Lexer) matchKeyword(ide string) result.Result[TokenData] {
 	token, exist := keywords[ide]
 	if exist {
-		return lexer.startPosition, token, ""
+		return lexer.makeTokenData(token, "")
 	} else {
-		return lexer.startPosition, ID, Lexeme(ide)
+		return lexer.makeTokenData(ID, Lexeme(ide))
 	}
 }
 
-func (lexer *Lexer) addToken(token Token) (Position, Token, Lexeme) {
-	return lexer.startPosition, token, ""
+func (lexer *Lexer) advance() result.Result[rune] {
+	char, _, err := lexer.reader.ReadRune()
+	res := result.Make(char, err)
+
+	if res.IsOk() {
+		if res.Unwrap() == '\n' {
+			lexer.currentPosition.line += 1
+			lexer.currentPosition.column = 0
+			lexer.startPosition = lexer.currentPosition
+		} else if unicode.IsSpace(res.Unwrap()) {
+			lexer.startPosition = lexer.currentPosition
+			lexer.currentPosition.column += 1
+		} else {
+			lexer.currentPosition.column += 1
+		}
+	}
+
+	return res
 }
 
-func (lexer *Lexer) advance() (char rune, err error) {
-	char, _, err = lexer.reader.ReadRune()
-	lexer.currentPosition.column += 1
-	return
-}
-
-func (lexer *Lexer) peek() (char rune, err error) {
-	char, _, err = lexer.reader.ReadRune()
+func (lexer *Lexer) peek() result.Result[rune] {
+	char, _, err := lexer.reader.ReadRune()
+	res := result.Make(char, err)
 	lexer.reader.UnreadRune()
-	return
+
+	return res
 }
 
-func (lexer *Lexer) skipLine() {
-	for {
-		char, err := lexer.advance()
-		if err != nil {
-			lexer.reader.UnreadRune()
-			return
-		}
-		if char == '\n' {
-			lexer.newLine()
-			return
-		}
+func (lexer *Lexer) skipLine() result.Result[rune] {
+	var iter Iterator[rune] = &LexerIterator{
+		lexer: lexer,
 	}
+
+	iter = takeWhile[rune](iter, func(char rune) bool {
+		return char != '\n'
+	})
+
+	return last(iter)
 }
 
-func (lexer *Lexer) skipMultiLineComment() {
-	for {
-		char, err := lexer.advance()
-		if err != nil {
-			lexer.reader.UnreadRune()
-			return
-		}
-		if char == '\n' {
-			lexer.newLine()
-		} else if char == '*' {
-			lexer.advance()
-			char, err := lexer.advance()
-			if err != nil {
-				lexer.reader.UnreadRune()
-				return
-			}
-			if char == '/' {
-				return
-			}
-		}
+func (lexer *Lexer) skipMultiLineComment() result.Result[rune] {
+	var iter Iterator[rune] = &LexerIterator{
+		lexer: lexer,
 	}
+
+	var lastChar rune
+	iter = takeWhile[rune](iter, func(char rune) bool {
+		res := lastChar == '*' && char == '/'
+		lastChar = char
+		return !res
+	})
+
+	return last(iter)
 }
 
-func (lexer *Lexer) newLine() {
-	lexer.currentPosition.line += 1
-	lexer.currentPosition.column = 0
-}
-
-func (lexer *Lexer) matchString() (Position, Token, Lexeme) {
+func (lexer *Lexer) matchString() result.Result[TokenData] {
 	var lexeme string
 
-	for {
-		char, err := lexer.advance()
-		if err != nil {
-			lexer.reader.UnreadRune()
-			break
-		} else if char == '"' {
-			break
-		}
-		lexeme += string(char)
+	var iter Iterator[rune] = &LexerIterator{
+		lexer: lexer,
 	}
 
-	return lexer.startPosition, ID, Lexeme(lexeme)
+	iter = takeWhile[rune](iter, func(char rune) bool {
+		res := char != '"'
+		if res {
+			lexeme += string(char)
+		}
+
+		return res
+	})
+
+	last(iter)
+
+	return lexer.makeTokenData(ID, Lexeme(lexeme))
 }
 
-func (lexer *Lexer) matchAlphaNumeric(char rune) (Position, Token, Lexeme) {
+func (lexer *Lexer) matchAlphaNumeric(char rune) result.Result[TokenData] {
 	var lexeme = string(char)
 
-	for {
-		char, err := lexer.advance()
-		if err != nil {
-			lexer.reader.UnreadRune()
-			break
-		} else if char == '_' || unicode.IsDigit(char) || unicode.IsLetter(char) {
-			lexeme += string(char)
-		} else {
-			lexer.reader.UnreadRune()
-			break
-		}
+	var iter Iterator[rune] = &LexerIterator{
+		lexer: lexer,
 	}
+
+	iter = takeWhile[rune](iter, func(char rune) bool {
+		res := char == '_' || unicode.IsDigit(char) || unicode.IsLetter(char)
+		if res {
+			lexeme += string(char)
+		}
+
+		return res
+	})
+
+	last(iter)
 
 	return lexer.matchKeyword(lexeme)
 }
 
-func (lexer *Lexer) matchNumeral(char rune) (Position, Token, Lexeme) {
+func (lexer *Lexer) matchNumeral(char rune) result.Result[TokenData] {
 	var lexeme = string(char)
 	var canBeDot = true
 
-	for {
-		char, err := lexer.advance()
-		if err != nil {
-			lexer.reader.UnreadRune()
-			break
-		} else if char == '.' && canBeDot {
-			canBeDot = false
-			lexeme += string(char)
-		} else if unicode.IsDigit(char) {
-			lexeme += string(char)
-		} else {
-			lexer.reader.UnreadRune()
-			break
-		}
+	var iter Iterator[rune] = &LexerIterator{
+		lexer: lexer,
 	}
 
-	return lexer.startPosition, ID, Lexeme(lexeme)
+	iter = takeWhile[rune](iter, func(char rune) bool {
+		if char == '.' && canBeDot {
+			canBeDot = false
+			lexeme += string(char)
+			return true
+		} else if unicode.IsDigit(char) {
+			lexeme += string(char)
+			return true
+		} else {
+			return false
+		}
+	})
+
+	last(iter)
+
+	return lexer.makeTokenData(ID, Lexeme(lexeme))
 }
 
-func (lexer *Lexer) matchIdentifier(char rune) (Position, Token, Lexeme) {
+func (lexer *Lexer) matchIdentifier(char rune) result.Result[TokenData] {
 	if char == '"' {
 		return lexer.matchString()
 	} else if unicode.IsDigit(char) || char == '-' || char == '.' {
@@ -295,6 +397,6 @@ func (lexer *Lexer) matchIdentifier(char rune) (Position, Token, Lexeme) {
 	} else if unicode.IsLetter(char) || char == '_' {
 		return lexer.matchAlphaNumeric(char)
 	} else {
-		panic(nil)
+		return lexer.makeTokenError("invalid identifier")
 	}
 }
