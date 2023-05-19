@@ -7,6 +7,11 @@ type PeekableIterator[T any] interface {
 	Peek() option.Option[T]
 }
 
+type MultiPeekableIterator[T any] interface {
+	PeekableIterator[T]
+	PeekNth(n int32) option.Option[T]
+}
+
 func FoldWhile[A any, T any](accumulator A, iter PeekableIterator[T], fn func(A, T) (bool, A)) (A, PeekableIterator[T]) {
 	keepIterating := true
 	for {

@@ -2,6 +2,7 @@ package iterator
 
 import "dot-parser/option"
 
+// todo: make the buffer extensible and the iterator a multipeekable iterator implementing peekNth
 type BufferedIterator[T any] struct {
 	iterator Iterator[T]
 	buffer   option.Option[T]

@@ -4,7 +4,7 @@ import (
 	"dot-parser/option"
 )
 
-// Iterator interface
+// todo: remove hasNext and leave only next()
 type Iterator[T any] interface {
 	HasNext() bool
 	GetNext() option.Option[T]
