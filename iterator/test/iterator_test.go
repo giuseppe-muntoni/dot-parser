@@ -1,4 +1,4 @@
-package iterator_test
+package test_test
 
 import (
 	"dot-parser/iterator"

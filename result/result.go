@@ -121,3 +121,11 @@ func ToOption[T any](result Result[T]) option.Option[T] {
 		return option.None[T]()
 	}
 }
+
+func FromOption[T any](option option.Option[T], err error) Result[T] {
+	if option.IsSome() {
+		return Ok(option.Unwrap())
+	} else {
+		return Err[T](err)
+	}
+}

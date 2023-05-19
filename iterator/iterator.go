@@ -39,36 +39,3 @@ func Last[T any](iter Iterator[T]) option.Option[T] {
 		}
 	}
 }
-
-// TakeWhile iterator
-type TakeWhileIterator[T any] struct {
-	iterator  Iterator[T]
-	predicate func(T) bool
-	buffer    option.Option[T]
-}
-
-func TakeWhile[T any](iter Iterator[T], predicate func(T) bool) Iterator[T] {
-	return &TakeWhileIterator[T]{
-		iterator:  iter,
-		predicate: predicate,
-		buffer:    option.None[T](),
-	}
-}
-
-func (iter *TakeWhileIterator[T]) fillBuffer() {
-	if !iter.buffer.IsSome() {
-		iter.buffer = iter.iterator.GetNext()
-	}
-}
-
-func (iter *TakeWhileIterator[T]) HasNext() bool {
-	iter.fillBuffer()
-
-	return option.Map(iter.buffer, iter.predicate).OrElse(false)
-}
-
-func (iter *TakeWhileIterator[T]) GetNext() option.Option[T] {
-	iter.fillBuffer()
-
-	return option.Filter(option.Take(&iter.buffer), iter.predicate)
-}

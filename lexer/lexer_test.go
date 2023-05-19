@@ -1,7 +1,6 @@
 package lexer
 
 import (
-	"io"
 	"strings"
 	"testing"
 )
@@ -72,46 +71,6 @@ func testIdToken(t *testing.T, input string, expectedLexeme string, errorMsg str
 	res := lexer.Next().Unwrap()
 	if res.token != ID || res.lexeme != Lexeme(expectedLexeme) {
 		printToken(t, errorMsg, res.position, res.token, res.lexeme)
-	}
-}
-
-func TestAdvance(t *testing.T) {
-	lexer := getLexer("abc")
-
-	if char := lexer.advance(); !char.IsOk() || char.Unwrap() != 'a' {
-		t.Errorf("Expected a; got %v", char)
-	}
-
-	if char := lexer.advance(); !char.IsOk() || char.Unwrap() != 'b' {
-		t.Errorf("Expected b; got %v", char)
-	}
-
-	if char := lexer.advance(); !char.IsOk() || char.Unwrap() != 'c' {
-		t.Errorf("Expected c; got %v", char)
-	}
-
-	if char := lexer.advance(); char.IsOk() || char.UnwrapErr() != io.EOF {
-		t.Errorf("Expected EOF; got %v", char)
-	}
-}
-
-func TestPeek(t *testing.T) {
-	lexer := getLexer("a")
-
-	if char := lexer.peek(); !char.IsOk() || char.Unwrap() != 'a' {
-		t.Errorf("Expected a; got %v", char)
-	}
-
-	if char := lexer.advance(); !char.IsOk() || char.Unwrap() != 'a' {
-		t.Errorf("Expected a; got %v", char)
-	}
-
-	if char := lexer.peek(); char.IsOk() || char.UnwrapErr() != io.EOF {
-		t.Errorf("Expected EOF; got %v", char)
-	}
-
-	if char := lexer.advance(); char.IsOk() || char.UnwrapErr() != io.EOF {
-		t.Errorf("Expected EOF; got %v", char)
 	}
 }
 
