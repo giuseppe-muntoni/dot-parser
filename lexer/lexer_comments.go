@@ -9,7 +9,7 @@ import (
 func (lexer *Lexer) matchComment(firstChar rune, iter iterator.PeekableIterator[rune]) result.Result[iterator.PeekableIterator[rune]] {
 	switch firstChar {
 	case '/':
-		next := result.FromOption(iter.GetNext(), errors.New("invalid comment"))
+		next := result.FromOption(iter.Next(), errors.New("invalid comment"))
 
 		return result.FlatMap(next, func(char rune) result.Result[iterator.PeekableIterator[rune]] {
 			if char == '*' {

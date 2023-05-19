@@ -20,7 +20,7 @@ func FoldWhile[A any, T any](accumulator A, iter PeekableIterator[T], fn func(A,
 			if !keepIterating {
 				return accumulator, iter
 			} else {
-				iter.GetNext()
+				iter.Next()
 			}
 		} else {
 			return accumulator, iter

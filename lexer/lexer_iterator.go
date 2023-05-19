@@ -11,18 +11,7 @@ type lexerIterator struct {
 	reader          *bufio.Reader
 }
 
-func (iter *lexerIterator) HasNext() bool {
-	_, _, err := iter.reader.ReadRune()
-	iter.reader.UnreadRune()
-
-	if err != nil {
-		return err == io.EOF
-	} else {
-		return true
-	}
-}
-
-func (iter *lexerIterator) GetNext() option.Option[rune] {
+func (iter *lexerIterator) Next() option.Option[rune] {
 	char, _, err := iter.reader.ReadRune()
 
 	res := option.None[rune]()

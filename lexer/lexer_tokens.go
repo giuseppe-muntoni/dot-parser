@@ -62,6 +62,16 @@ func (lexer *Lexer) makeTokenData(token Token, lexeme Lexeme) result.Result[Toke
 	)
 }
 
+func (token TokenData) Position() Position {
+	return token.position
+}
+func (token TokenData) Token() Token {
+	return token.token
+}
+func (token TokenData) Lexeme() Lexeme {
+	return token.lexeme
+}
+
 type TokenError struct {
 	position Position
 	message  string
@@ -82,4 +92,47 @@ func (lexer *Lexer) makeTokenError(message string) result.Result[TokenData] {
 			message:  message,
 		},
 	)
+}
+
+func (token Token) String() string {
+	switch token {
+	case OPEN_BRACE:
+		return "{"
+	case CLOSE_BRACE:
+		return "}"
+	case SEMICOLON:
+		return ";"
+	case COLON:
+		return ":"
+	case COMMA:
+		return ","
+	case OPEN_SQUARE_BRACKET:
+		return "["
+	case CLOSE_SQUARE_BRACKET:
+		return "]"
+	case EQUAL:
+		return "="
+	case ARC:
+		return "--"
+	case DIRECTED_ARC:
+		return "->"
+	case ID:
+		return "ID"
+	case GRAPH:
+		return "'graph'"
+	case DIGRAPH:
+		return "'digraph'"
+	case STRICT:
+		return "'strict'"
+	case NODE:
+		return "'node'"
+	case EDGE:
+		return "'edge'"
+	case SUBGRAPH:
+		return "'subgraph'"
+	case EOF:
+		return "EOF"
+	default:
+		panic(nil)
+	}
 }

@@ -2,33 +2,38 @@ package iterator
 
 import "dot-parser/option"
 
-// todo: make the buffer extensible and the iterator a multipeekable iterator implementing peekNth
 type BufferedIterator[T any] struct {
 	iterator Iterator[T]
-	buffer   option.Option[T]
+	buffer   []T
 }
 
-func Buffered[T any](iter Iterator[T], value option.Option[T]) PeekableIterator[T] {
-	return &BufferedIterator[T]{iterator: iter, buffer: value}
+func Buffered[T any](iter Iterator[T]) MultiPeekableIterator[T] {
+	return &BufferedIterator[T]{iterator: iter, buffer: make([]T, 0)}
 }
 
-func (iter *BufferedIterator[T]) fillBuffer() {
-	if !iter.buffer.IsSome() {
-		iter.buffer = iter.iterator.GetNext()
+func (iter *BufferedIterator[T]) Next() option.Option[T] {
+	if len(iter.buffer) > 0 {
+		var res option.Option[T]
+		iter.buffer, res = iter.buffer[1:], option.Some(iter.buffer[0])
+		return res
+	} else {
+		return iter.iterator.Next()
 	}
 }
 
-func (iter *BufferedIterator[T]) HasNext() bool {
-	iter.fillBuffer()
-	return iter.buffer.IsSome()
-}
-
-func (iter *BufferedIterator[T]) GetNext() option.Option[T] {
-	iter.fillBuffer()
-	return option.Take(&iter.buffer)
-}
-
 func (iter *BufferedIterator[T]) Peek() option.Option[T] {
-	iter.fillBuffer()
-	return iter.buffer
+	return iter.PeekNth(1)
+}
+
+func (iter *BufferedIterator[T]) PeekNth(n int32) option.Option[T] {
+	for int32(len(iter.buffer)) < n {
+		next := iter.iterator.Next()
+		if next.IsSome() {
+			iter.buffer = append(iter.buffer, next.Unwrap())
+		} else {
+			return option.None[T]()
+		}
+	}
+
+	return option.Some(iter.buffer[n-1])
 }

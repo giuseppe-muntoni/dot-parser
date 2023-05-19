@@ -14,6 +14,18 @@ type Position struct {
 	column int
 }
 
+func (pos *Position) Line() int {
+	return pos.line
+}
+
+func (pos *Position) Column() int {
+	return pos.column
+}
+
+func MakePosition(line int, column int) *Position {
+	return &Position{line: line, column: column}
+}
+
 type Lexer struct {
 	iter            iterator.PeekableIterator[rune]
 	startPosition   Position
@@ -41,7 +53,7 @@ func (lexer *Lexer) Next() result.Result[TokenData] {
 	lexer.startPosition = lexer.currentPosition
 
 	for {
-		res := lexer.iter.GetNext()
+		res := lexer.iter.Next()
 
 		if !res.IsSome() {
 			return result.Err[TokenData](errors.New("IO error"))
@@ -81,7 +93,7 @@ func (lexer *Lexer) Next() result.Result[TokenData] {
 			commentMatched := lexer.matchComment(char, lexer.iter)
 			if commentMatched.IsOk() {
 				lexer.iter = commentMatched.Unwrap()
-				lexer.iter.GetNext()
+				lexer.iter.Next()
 				lexer.startPosition = lexer.currentPosition
 			} else {
 				err := commentMatched.UnwrapErr().Error()
@@ -92,10 +104,10 @@ func (lexer *Lexer) Next() result.Result[TokenData] {
 			return result.FlatMap(result.FromOption(lexer.iter.Peek(), errors.New("IO error")), func(char rune) (res result.Result[TokenData]) {
 				switch char {
 				case '-':
-					lexer.iter.GetNext()
+					lexer.iter.Next()
 					res = lexer.makeTokenData(ARC, "")
 				case '>':
-					lexer.iter.GetNext()
+					lexer.iter.Next()
 					res = lexer.makeTokenData(DIRECTED_ARC, "")
 				default:
 					res, lexer.iter = lexer.matchIdentifier('-', lexer.iter)
