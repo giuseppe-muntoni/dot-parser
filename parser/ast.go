@@ -16,9 +16,20 @@ type Statement interface {
 type AttributeMap map[string]string
 
 type Node struct {
-	name       string
-	port       option.Option[string]
+	ID         NodeID
 	attributes []AttributeMap
+}
+
+type NodeID struct {
+	name string
+	port option.Option[string]
+}
+
+func makeNodeID(name string, port option.Option[string]) NodeID {
+	return NodeID{
+		name: name,
+		port: port,
+	}
 }
 
 type Edge struct {
@@ -30,9 +41,9 @@ type Edge struct {
 type AttributeLevel uint8
 
 const (
-	GRAPH AttributeLevel = iota
-	NODE
-	EDGE
+	GRAPH_LEVEL AttributeLevel = iota
+	NODE_LEVEL
+	EDGE_LEVEL
 )
 
 type AttributeStmt struct {

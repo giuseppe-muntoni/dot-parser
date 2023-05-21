@@ -7,7 +7,7 @@ import (
 )
 
 func getLexer(input string) *lexer.Lexer {
-	return lexer.New(strings.NewReader(input))
+	return lexer.MakeLexer(strings.NewReader(input))
 }
 
 func printToken(t *testing.T, error string, position lexer.Position, token lexer.Token, lexeme lexer.Lexeme) {
@@ -17,7 +17,7 @@ func printToken(t *testing.T, error string, position lexer.Position, token lexer
 func testSingleToken(t *testing.T, input string, expectedToken lexer.Token, errorMsg string) {
 	var lex = getLexer(input)
 
-	res := lex.Next().Unwrap()
+	res := lex.Next().Unwrap().Unwrap()
 	if res.Token() != expectedToken {
 		printToken(t, errorMsg, res.Position(), res.Token(), res.Lexeme())
 	}
@@ -26,7 +26,7 @@ func testSingleToken(t *testing.T, input string, expectedToken lexer.Token, erro
 func testIdToken(t *testing.T, input string, expectedLexeme string, errorMsg string) {
 	var lex = getLexer(input)
 
-	res := lex.Next().Unwrap()
+	res := lex.Next().Unwrap().Unwrap()
 	if res.Token() != lexer.ID || res.Lexeme() != lexer.Lexeme(expectedLexeme) {
 		printToken(t, errorMsg, res.Position(), res.Token(), res.Lexeme())
 	}
@@ -212,7 +212,7 @@ func TestTokenizeExample(t *testing.T) {
 
 	var i = 0
 	for {
-		res := lex.Next().Unwrap()
+		res := lex.Next().Unwrap().Unwrap()
 		if res.Position() != expectedPositions[i] || res.Token() != expectedTokens[i] || res.Lexeme() != lexer.Lexeme(expectedLexemes[i]) {
 			printToken(t, "Expected", expectedPositions[i], expectedTokens[i], lexer.Lexeme(expectedLexemes[i]))
 			printToken(t, "Got", res.Position(), res.Token(), res.Lexeme())

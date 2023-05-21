@@ -3,6 +3,7 @@ package lexer
 import (
 	"bufio"
 	"dot-parser/iterator"
+	"dot-parser/option"
 	"dot-parser/result"
 	"errors"
 	"io"
@@ -14,11 +15,11 @@ type Position struct {
 	column int
 }
 
-func (pos *Position) Line() int {
+func (pos Position) Line() int {
 	return pos.line
 }
 
-func (pos *Position) Column() int {
+func (pos Position) Column() int {
 	return pos.column
 }
 
@@ -32,7 +33,7 @@ type Lexer struct {
 	currentPosition Position
 }
 
-func New(reader io.Reader) *Lexer {
+func MakeLexer(reader io.Reader) iterator.Iterator[result.Result[TokenData]] {
 	lexer := &Lexer{
 		iter:            nil,
 		startPosition:   Position{line: 1, column: 1},
@@ -49,7 +50,11 @@ func New(reader io.Reader) *Lexer {
 	return lexer
 }
 
-func (lexer *Lexer) Next() result.Result[TokenData] {
+func (lexer *Lexer) Next() option.Option[result.Result[TokenData]] {
+	return option.Some(lexer.next())
+}
+
+func (lexer *Lexer) next() result.Result[TokenData] {
 	lexer.startPosition = lexer.currentPosition
 
 	for {
