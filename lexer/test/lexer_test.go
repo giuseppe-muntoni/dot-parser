@@ -1,12 +1,14 @@
 package test
 
 import (
+	"dot-parser/iterator"
 	"dot-parser/lexer"
+	"dot-parser/result"
 	"strings"
 	"testing"
 )
 
-func getLexer(input string) *lexer.Lexer {
+func getLexer(input string) iterator.Iterator[result.Result[lexer.TokenData]] {
 	return lexer.MakeLexer(strings.NewReader(input))
 }
 
