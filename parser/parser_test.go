@@ -54,14 +54,14 @@ func TestParseNodeIdWithoutPort(t *testing.T) {
 func TestParseAttribute(t *testing.T) {
 	iter := makeParser("first = second")
 
-	res := parseAList(iter)
+	res := parseAttribute(iter)
 	if !res.IsOk() {
 		t.Fatalf("Expected Attribute, failed with %s", res.UnwrapErr())
 	}
 
-	attributeMap := res.Unwrap().value
-	if value, contains := attributeMap["first"]; !contains || value != "second" {
-		t.Fatalf("Expected Attribute with key 'first' and value 'second', found %s", attributeMap)
+	attribute := res.Unwrap().value
+	if attribute.key != "first" || attribute.value != "second" {
+		t.Fatalf("Expected Attribute with key 'first' and value 'second', found %s", attribute)
 	}
 }
 

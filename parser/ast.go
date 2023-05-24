@@ -5,7 +5,7 @@ import "dot-parser/option"
 type Graph struct {
 	isStrict   bool
 	isDirect   bool
-	name       string
+	name       option.Option[string]
 	statements []Statement
 }
 
@@ -33,8 +33,8 @@ func makeNodeID(name string, port option.Option[string]) NodeID {
 }
 
 type Edge struct {
-	lnode      string
-	rnode      string
+	lnode      NodeID
+	rnode      NodeID
 	attributes []AttributeMap
 }
 
@@ -47,9 +47,16 @@ const (
 )
 
 type AttributeStmt struct {
-	level AttributeLevel
+	level      AttributeLevel
+	attributes []AttributeMap
 }
 
-func (n *Node) isStatement() bool          { return true }
-func (e *Edge) isStatement() bool          { return true }
-func (a *AttributeStmt) isStatement() bool { return true }
+type SingleAttribute struct {
+	key   string
+	value string
+}
+
+func (n *Node) isStatement() bool            { return true }
+func (e *Edge) isStatement() bool            { return true }
+func (a *AttributeStmt) isStatement() bool   { return true }
+func (a *SingleAttribute) isStatement() bool { return true }
