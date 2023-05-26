@@ -13,7 +13,7 @@ func TestParsePort(t *testing.T) {
 	iter := makeParser(": PortName")
 
 	res := parsePort(iter)
-	if !res.IsOk() {
+	if res.IsErr() {
 		t.Fatalf("Expected port, failed with %s", res.UnwrapErr())
 	}
 
@@ -27,13 +27,13 @@ func TestParseNodeIdWithPort(t *testing.T) {
 	iter := makeParser("NodeId : PortName")
 
 	res := parseNodeID(iter)
-	if !res.IsOk() {
+	if res.IsErr() {
 		t.Fatalf("Expected NodeId, failed with %s", res.UnwrapErr())
 	}
 
 	value := res.Unwrap().value
 	if value.name != "NodeId" || !value.port.IsSome() || value.port.Unwrap() != "PortName" {
-		t.Fatalf("Expected NodeId with name 'NodeId' and port 'PortName', found %s", value)
+		t.Fatalf("Expected NodeId with name 'NodeId' and port 'PortName', found %v", value)
 	}
 }
 
@@ -41,13 +41,13 @@ func TestParseNodeIdWithoutPort(t *testing.T) {
 	iter := makeParser("NodeId")
 
 	res := parseNodeID(iter)
-	if !res.IsOk() {
+	if res.IsErr() {
 		t.Fatalf("Expected NodeId, failed with %s", res.UnwrapErr())
 	}
 
 	value := res.Unwrap().value
 	if value.name != "NodeId" || value.port.IsSome() {
-		t.Fatalf("Expected NodeId with name 'NodeId' without port, found %s", value)
+		t.Fatalf("Expected NodeId with name 'NodeId' without port, found %v", value)
 	}
 }
 
@@ -55,7 +55,7 @@ func TestParseAttribute(t *testing.T) {
 	iter := makeParser("first = second")
 
 	res := parseAttribute(iter)
-	if !res.IsOk() {
+	if res.IsErr() {
 		t.Fatalf("Expected Attribute, failed with %s", res.UnwrapErr())
 	}
 
@@ -69,7 +69,7 @@ func TestParseAttributeList(t *testing.T) {
 	iter := makeParser("[ a0 = a0 a1= a1, a2 = a2; a3 = a3; ]")
 
 	res := parseAttrList(iter)
-	if !res.IsOk() {
+	if res.IsErr() {
 		t.Fatalf("Expected Attribute List, failed with %s", res.UnwrapErr())
 	}
 
@@ -85,5 +85,26 @@ func TestParseAttributeList(t *testing.T) {
 	}
 	if value, contains := attributeMap["a3"]; !contains || value != "a3" {
 		t.Fatalf("Expected Attribute with key 'a3' and value 'a3', found %s", attributeMap)
+	}
+}
+
+func TestParseNodeStatementWithAttributes(t *testing.T) {
+	iter := makeParser("NodeId [ a0 = a0 ]")
+
+	res := parseNodeStmt(iter)
+	if res.IsErr() {
+		t.Fatalf("Expected Node Statement, failed with %s", res.UnwrapErr())
+	}
+
+	var nodeStmt Node
+	switch val := res.Unwrap().value[0].(type) {
+	case *Node:
+		nodeStmt = *val
+	default:
+		t.Fatalf("Expected Node Statement, but got %v", val)
+	}
+
+	if nodeStmt.ID.name != "NodeId" || nodeStmt.ID.port.IsSome() {
+		t.Fatalf("Expected NodeId with name NodeId and empty port, found %s", nodeStmt.ID)
 	}
 }

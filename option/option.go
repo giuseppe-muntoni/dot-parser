@@ -1,56 +1,52 @@
 package option
 
-import (
-	"errors"
-)
+import "errors"
 
-type Option[T any] interface {
-	IsSome() bool
-	OrElse(other T) T
-	Unwrap() T
-}
-
-// Some variant
-type some[T any] struct {
-	val T
+type Option[T any] struct {
+	value   T
+	isValid bool
 }
 
 func Some[T any](value T) Option[T] {
-	return &some[T]{val: value}
+	return Option[T]{value: value, isValid: true}
 }
-
-func (opt *some[T]) IsSome() bool {
-	return true
-}
-
-func (opt *some[T]) OrElse(other T) T {
-	return opt.val
-}
-
-func (opt *some[T]) Unwrap() T {
-	return opt.val
-}
-
-// None variant
-type none[T any] struct{}
 
 func None[T any]() Option[T] {
-	return &none[T]{}
+	return Option[T]{isValid: false}
 }
 
-func (opt *none[T]) IsSome() bool {
-	return false
+func (opt Option[T]) IsSome() bool {
+	return opt.isValid
 }
 
-func (opt *none[T]) OrElse(other T) T {
-	return other
+func (opt Option[T]) IsNone() bool {
+	return !opt.IsSome()
 }
 
-func (opt *none[T]) Unwrap() T {
-	panic(errors.New("tried to unwrap a None Option"))
+func (opt Option[T]) OrElse(other T) T {
+	if opt.IsSome() {
+		return opt.value
+	} else {
+		return other
+	}
 }
 
-// Map and FlatMap
+func (opt Option[T]) Unwrap() T {
+	if opt.IsSome() {
+		return opt.value
+	} else {
+		panic(errors.New("tried to unwrap a None Option"))
+	}
+}
+
+func (opt Option[T]) Filter(predicate func(T) bool) Option[T] {
+	if opt.IsSome() && predicate(opt.value) {
+		return opt
+	} else {
+		return None[T]()
+	}
+}
+
 func Filter[T any](opt Option[T], predicate func(T) bool) Option[T] {
 	return FlatMap(opt, func(val T) Option[T] {
 		if predicate(val) {
@@ -61,28 +57,6 @@ func Filter[T any](opt Option[T], predicate func(T) bool) Option[T] {
 	})
 }
 
-func Map[U any, V any](opt Option[U], fn func(U) V) Option[V] {
-	switch opt := opt.(type) {
-	case *some[U]:
-		return Some(fn(opt.val))
-	case *none[U]:
-		return None[V]()
-	default:
-		panic(nil)
-	}
-}
-
-func FlatMap[U any, V any](opt Option[U], fn func(U) Option[V]) Option[V] {
-	switch opt := opt.(type) {
-	case *some[U]:
-		return fn(opt.val)
-	case *none[U]:
-		return None[V]()
-	default:
-		panic(nil)
-	}
-}
-
 func Take[T any](opt *Option[T]) Option[T] {
 	if (*opt).IsSome() {
 		copy := *opt
@@ -90,5 +64,22 @@ func Take[T any](opt *Option[T]) Option[T] {
 		return copy
 	} else {
 		return None[T]()
+	}
+}
+
+// Map and FlatMap
+func Map[U any, V any](opt Option[U], fn func(U) V) Option[V] {
+	if opt.IsSome() {
+		return Some(fn(opt.value))
+	} else {
+		return None[V]()
+	}
+}
+
+func FlatMap[U any, V any](opt Option[U], fn func(U) Option[V]) Option[V] {
+	if opt.IsSome() {
+		return fn(opt.value)
+	} else {
+		return None[V]()
 	}
 }

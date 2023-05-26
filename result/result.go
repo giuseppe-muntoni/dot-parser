@@ -5,12 +5,18 @@ import (
 	"errors"
 )
 
-type Result[T any] interface {
-	Get() (T, error)
-	OrElse(other T) T
-	IsOk() bool
-	Unwrap() T
-	UnwrapErr() error
+type Result[T any] struct {
+	value T
+	err   error
+}
+
+// Constructors
+func Ok[T any](value T) Result[T] {
+	return Result[T]{value: value, err: nil}
+}
+
+func Err[T any](err error) Result[T] {
+	return Result[T]{err: err}
 }
 
 func Make[T any](value T, err error) Result[T] {
@@ -21,96 +27,66 @@ func Make[T any](value T, err error) Result[T] {
 	}
 }
 
-// Ok Variant
-type ok[T any] struct {
-	val T
+// Methods
+
+func (res Result[T]) Get() (T, error) {
+	return res.value, res.err
 }
 
-func Ok[T any](value T) Result[T] {
-	return ok[T]{val: value}
+func (res Result[T]) IsOk() bool {
+	return res.err == nil
 }
 
-func (ok ok[T]) Get() (T, error) {
-	return ok.val, nil
+func (res Result[T]) IsErr() bool {
+	return !res.IsOk()
 }
 
-func (ok ok[T]) OrElse(other T) T {
-	return ok.val
+func (res Result[T]) OrElse(other T) T {
+	if res.IsOk() {
+		return res.value
+	} else {
+		return other
+	}
 }
 
-func (ok ok[T]) IsOk() bool {
-	return true
+func (res Result[T]) Unwrap() T {
+	if res.IsOk() {
+		return res.value
+	} else {
+		panic(res.err)
+	}
 }
 
-func (ok ok[T]) Unwrap() T {
-	return ok.val
-}
-
-func (ok ok[T]) UnwrapErr() error {
-	panic(errors.New("tried to unwrap an error on an Ok Result"))
-}
-
-// Err Variant
-type err[T any] struct {
-	err error
-}
-
-func Err[T any](error error) Result[T] {
-	return err[T]{err: error}
-}
-
-func (err err[T]) Get() (T, error) {
-	var result T
-	return result, err.err
-}
-
-func (err err[T]) OrElse(other T) T {
-	return other
-}
-
-func (err err[T]) IsOk() bool {
-	return false
-}
-
-func (err err[T]) Unwrap() T {
-	panic(err.err)
-}
-
-func (err err[T]) UnwrapErr() error {
-	return err.err
+func (res Result[T]) UnwrapErr() error {
+	if res.IsOk() {
+		panic(errors.New("tried to unwrap the error on an Ok Result"))
+	} else {
+		return res.err
+	}
 }
 
 // Map and FlatMap
 func Map[U any, V any](result Result[U], fn func(U) V) Result[V] {
-	switch res := result.(type) {
-	case ok[U]:
-		return Ok(fn(res.val))
-	case err[U]:
-		return Err[V](res.err)
-	default:
-		panic(nil)
+	if result.IsOk() {
+		return Ok(fn(result.value))
+	} else {
+		return Err[V](result.err)
 	}
 }
 
 func FlatMap[U any, V any](result Result[U], fn func(U) Result[V]) Result[V] {
-	switch res := result.(type) {
-	case ok[U]:
-		return fn(res.val)
-	case err[U]:
-		return Err[V](res.err)
-	default:
-		panic(nil)
+	if result.IsOk() {
+		return fn(result.value)
+	} else {
+		return Err[V](result.err)
 	}
 }
 
 func Contains[T comparable](result Result[T], value T) bool {
-	switch res := result.(type) {
-	case ok[T]:
-		return res.val == value
-	case err[T]:
+	if result.IsOk() {
+		return result.value == value
+	} else {
 		return false
-	default:
-		panic(nil)
 	}
 }
 

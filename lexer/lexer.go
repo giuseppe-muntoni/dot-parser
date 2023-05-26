@@ -60,7 +60,7 @@ func (lexer *Lexer) next() result.Result[TokenData] {
 	for {
 		res := lexer.iter.Next()
 
-		if !res.IsSome() {
+		if res.IsNone() {
 			return result.Err[TokenData](errors.New("IO error"))
 		}
 
@@ -123,7 +123,7 @@ func (lexer *Lexer) next() result.Result[TokenData] {
 		case '"':
 			fallthrough
 		default:
-			var res result.Result[TokenData] = nil
+			var res result.Result[TokenData]
 			res, lexer.iter = lexer.matchIdentifier(char, lexer.iter)
 			return res
 		}

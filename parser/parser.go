@@ -1,79 +1,15 @@
 package parser
 
 import (
-	"dot-parser/iterator"
 	. "dot-parser/lexer"
 	"dot-parser/option"
 	. "dot-parser/result"
-	"fmt"
-	"io"
 )
 
-type tokenIterator iterator.MultiPeekableIterator[Result[TokenData]]
-
-func makeTokenIterator(reader io.Reader) tokenIterator {
-	lex := MakeLexer(reader)
-	iter := iterator.TakeWhile(lex, func(token Result[TokenData]) bool {
-		eofFound := false
-		return Map(token, func(token TokenData) bool {
-			if token.Token() == EOF {
-				if eofFound {
-					return false
-				} else {
-					eofFound = true
-					return true
-				}
-			} else {
-				return true
-			}
-		}).OrElse(false)
-	})
-	return iterator.Buffered(iter)
-}
-
-type ParserError struct {
-	token         TokenData
-	expectedToken Token
-}
-
-func (err *ParserError) Error() string {
-	return fmt.Sprintf(
-		"Parsing error at line %d column %d: Got token %s with lexeme \"%s\", but %s was expected",
-		err.token.Position().Line(),
-		err.token.Position().Column(),
-		err.token.Token(),
-		err.token.Lexeme(),
-		err.expectedToken)
-}
-
-func makeParserError[T any](token TokenData, expectedToken Token) Result[parserData[T]] {
-	return Err[parserData[T]](
-		&ParserError{
-			token:         token,
-			expectedToken: expectedToken,
-		},
-	)
-}
-
-type parserData[T any] struct {
-	value T
-	iter  tokenIterator
-}
-
-func makeParserData[T any](iter tokenIterator, value T) Result[parserData[T]] {
-	return Ok(parserData[T]{
-		iter:  iter,
-		value: value,
-	})
-}
-
-func makeParserDataRes[T any](iter Result[tokenIterator], value T) Result[parserData[T]] {
-	return FlatMap(iter, func(iter tokenIterator) Result[parserData[T]] {
-		return makeParserData(iter, value)
-	})
-}
-
-func parseGraph(iter tokenIterator) Result[parserData[Graph]] {
+// Graph:
+// | STRICT? GRAPH ID? '{' StatementInList(false)+ '}' EOF
+// | STRICT? DIGRAPH ID? '{' StatementInList(true)+ '}' EOF
+func ParseGraph(iter tokenIterator) Result[parserData[Graph]] {
 	var strictT option.Option[TokenData]
 	var isDirectT TokenData
 	var name option.Option[TokenData]
@@ -92,7 +28,7 @@ func parseGraph(iter tokenIterator) Result[parserData[Graph]] {
 		return parse(iter,
 			keep(&name, optional(matchToken(ID), []Token{ID})),
 			skip(matchToken(OPEN_BRACE)),
-			keep(&stmts, list(parseStmtInList, []Token{ID, GRAPH, NODE, EDGE})),
+			keep(&stmts, nonEmptyList(parseStmtInList, []Token{ID, GRAPH, NODE, EDGE})),
 			skip(matchToken(CLOSE_BRACE)),
 			skip(matchToken(EOF)),
 		)
@@ -100,9 +36,7 @@ func parseGraph(iter tokenIterator) Result[parserData[Graph]] {
 
 	var graphStmts []Statement
 	for _, stmts := range stmts {
-		for _, stmt := range stmts {
-			graphStmts = append(graphStmts, stmt)
-		}
+		graphStmts = append(graphStmts, stmts...)
 	}
 
 	return makeParserDataRes(newIter, Graph{
@@ -113,6 +47,7 @@ func parseGraph(iter tokenIterator) Result[parserData[Graph]] {
 	})
 }
 
+// StatementInList: Statement ';'?
 func parseStmtInList(iter tokenIterator, isDirect bool) Result[parserData[[]Statement]] {
 	var stmt []Statement
 
@@ -124,6 +59,7 @@ func parseStmtInList(iter tokenIterator, isDirect bool) Result[parserData[[]Stat
 	return makeParserDataRes(newIter, stmt)
 }
 
+// Statement(isDirect bool): NodeStatement | EdgeStatement(isDirect) | AttributeStatement | SingleAttributeStatement
 func parseStmt(iter tokenIterator, isDirect bool) Result[parserData[[]Statement]] {
 	var stmt []Statement
 
@@ -131,48 +67,22 @@ func parseStmt(iter tokenIterator, isDirect bool) Result[parserData[[]Statement]
 	if peekToken(1, ID)(iter) {
 		if peekToken(2, EQUAL)(iter) {
 			var attrib SingleAttribute
-			newIter = parse(iter, keep(&attrib, parseSingleAttribStmt))
+			newIter = parse(iter, keep(&attrib, parseAttribute))
 			stmt = []Statement{&attrib}
 		} else if peekToken(2, ARC, DIRECTED_ARC)(iter) || peekToken(4, ARC, DIRECTED_ARC)(iter) {
-			var edgeStmt []Edge
-			parseEdgeStmt := partialApply(isDirect, parseEdgeStmt)
-			newIter = parse(iter, keep(&edgeStmt, parseEdgeStmt))
-
-			stmt = []Statement{}
-			for _, edge := range edgeStmt {
-				stmt = append(stmt, &edge)
-			}
+			newIter = parse(iter, keep(&stmt, partialApply(isDirect, parseEdgeStmt)))
 		} else {
-			var nodeStmt Node
-			newIter = parse(iter, keep(&nodeStmt, parseNodeStmt))
-			stmt = []Statement{&nodeStmt}
+			newIter = parse(iter, keep(&stmt, parseNodeStmt))
 		}
 	} else {
-		var attrStmt AttributeStmt
-		newIter = parse(iter, keep(&attrStmt, parseAttrStmt))
-		stmt = []Statement{&attrStmt}
+		newIter = parse(iter, keep(&stmt, parseAttrStmt))
 	}
 
 	return makeParserDataRes(newIter, stmt)
 }
 
-func parseSingleAttribStmt(iter tokenIterator) Result[parserData[SingleAttribute]] {
-	var firstId TokenData
-	var secondId TokenData
-
-	newIter := parse(iter,
-		keep(&firstId, matchToken(ID)),
-		skip(matchToken(EQUAL)),
-		keep(&secondId, matchToken(ID)),
-	)
-
-	return makeParserDataRes(newIter, SingleAttribute{
-		key:   string(firstId.Lexeme()),
-		value: string(secondId.Lexeme()),
-	})
-}
-
-func parseAttrStmt(iter tokenIterator) Result[parserData[AttributeStmt]] {
+// AttributeStatement: (GRAPH | NODE | EDGE) AttributeList*
+func parseAttrStmt(iter tokenIterator) Result[parserData[[]Statement]] {
 	var attrType TokenData
 	var attrList []AttributeMap
 
@@ -191,43 +101,40 @@ func parseAttrStmt(iter tokenIterator) Result[parserData[AttributeStmt]] {
 		level = GRAPH_LEVEL
 	}
 
-	return makeParserDataRes(newIter, AttributeStmt{
-		level:      level,
-		attributes: attrList,
-	})
+	attribute := AttributeStmt{level: level, attributes: attrList}
+	return makeParserDataRes(newIter, []Statement{&attribute})
 }
 
-func parseEdgeStmt(iter tokenIterator, isDirect bool) Result[parserData[[]Edge]] {
+// EdgeStatement(isDirect bool): NodeId EdgeRHS(isDirect)+ AttributeList*
+func parseEdgeStmt(iter tokenIterator, isDirect bool) Result[parserData[[]Statement]] {
 	var firstLhs NodeID
-	var firstRhs NodeID
 	var nodes []NodeID
-	var edges []Edge
 	var attributes []AttributeMap
 
 	parseEdgeRhs := partialApply(isDirect, parseEdgeRhs)
 
 	newIter := parse(iter,
 		keep(&firstLhs, parseNodeID),
-		keep(&firstRhs, parseEdgeRhs),
-		keep(&nodes, list(parseEdgeRhs, []Token{ARC, DIRECTED_ARC})),
+		keep(&nodes, nonEmptyList(parseEdgeRhs, []Token{ARC, DIRECTED_ARC})),
 		keep(&attributes, list(parseAttrList, []Token{OPEN_SQUARE_BRACKET})),
 	)
 
-	edges = append(edges, Edge{
+	var edges []Statement
+	firstRhs, nodes := nodes[0], nodes[1:]
+	edges = append(edges, &Edge{
 		lnode:      firstLhs,
 		rnode:      firstRhs,
 		attributes: attributes,
 	})
 
 	for _, node := range nodes {
-		edges = append(edges, Edge{
+		edges = append(edges, &Edge{
 			lnode:      firstRhs,
 			rnode:      node,
 			attributes: attributes,
 		})
 		firstRhs = node
 	}
-
 	return makeParserDataRes(newIter, edges)
 }
 
@@ -237,6 +144,9 @@ func partialApply[T any](isDirect bool, fn func(tokenIterator, bool) Result[pars
 	}
 }
 
+// EdgeRHS(isDirect bool):
+// if isDirect: DIRECTED_ARC NodeId
+// else: ARC NodeId
 func parseEdgeRhs(iter tokenIterator, isDirect bool) Result[parserData[NodeID]] {
 	var nodeID NodeID
 	var newIter Result[tokenIterator]
@@ -256,7 +166,8 @@ func parseEdgeRhs(iter tokenIterator, isDirect bool) Result[parserData[NodeID]] 
 	return makeParserDataRes(newIter, nodeID)
 }
 
-func parseNodeStmt(iter tokenIterator) Result[parserData[Node]] {
+// NodeStatement: NodeId AttributeList*
+func parseNodeStmt(iter tokenIterator) Result[parserData[[]Statement]] {
 	var nodeID NodeID
 	var attrList []AttributeMap
 
@@ -265,17 +176,16 @@ func parseNodeStmt(iter tokenIterator) Result[parserData[Node]] {
 		keep(&attrList, list(parseAttrList, []Token{OPEN_SQUARE_BRACKET})),
 	)
 
-	return makeParserDataRes(newIter, Node{
-		ID:         nodeID,
-		attributes: attrList,
-	})
+	node := Node{ID: nodeID, attributes: attrList}
+	return makeParserDataRes(newIter, []Statement{&node})
 }
 
+// AttributeList: '[' SingleAttribute* ']'
 func parseAttrList(iter tokenIterator) Result[parserData[AttributeMap]] {
 	var attributes []SingleAttribute
 	newIter := parse(iter,
 		skip(matchToken(OPEN_SQUARE_BRACKET)),
-		keep(&attributes, list(parseAttribute, []Token{ID})),
+		keep(&attributes, list(parseAttributeInList, []Token{ID})),
 		skip(matchToken(CLOSE_SQUARE_BRACKET)),
 	)
 
@@ -287,6 +197,18 @@ func parseAttrList(iter tokenIterator) Result[parserData[AttributeMap]] {
 	return makeParserDataRes(newIter, finalAttributes)
 }
 
+// SingleAttribute: ID '=' ID (';' | ',')?
+func parseAttributeInList(iter tokenIterator) Result[parserData[SingleAttribute]] {
+	var attrib SingleAttribute
+	newIter := parse(iter,
+		keep(&attrib, parseAttribute),
+		skip(optional(matchToken(SEMICOLON, COMMA), []Token{SEMICOLON, COMMA})),
+	)
+
+	return makeParserDataRes(newIter, attrib)
+}
+
+// SingleAttribute: ID '=' ID
 func parseAttribute(iter tokenIterator) Result[parserData[SingleAttribute]] {
 	var firstId TokenData
 	var secondId TokenData
@@ -294,7 +216,6 @@ func parseAttribute(iter tokenIterator) Result[parserData[SingleAttribute]] {
 		keep(&firstId, matchToken(ID)),
 		skip(matchToken(EQUAL)),
 		keep(&secondId, matchToken(ID)),
-		skip(optional(matchToken(SEMICOLON, COMMA), []Token{SEMICOLON, COMMA})),
 	)
 
 	return makeParserDataRes(newIter, SingleAttribute{
@@ -303,6 +224,7 @@ func parseAttribute(iter tokenIterator) Result[parserData[SingleAttribute]] {
 	})
 }
 
+// NodeId: ID Port?
 func parseNodeID(iter tokenIterator) Result[parserData[NodeID]] {
 	var nodeName TokenData
 	var port option.Option[string]
@@ -314,6 +236,7 @@ func parseNodeID(iter tokenIterator) Result[parserData[NodeID]] {
 	return makeParserDataRes(newIter, makeNodeID(string(nodeName.Lexeme()), port))
 }
 
+// Port: ':' ID
 func parsePort(iter tokenIterator) Result[parserData[string]] {
 	var port TokenData
 	newIter := parse(iter,
@@ -322,107 +245,4 @@ func parsePort(iter tokenIterator) Result[parserData[string]] {
 	)
 
 	return makeParserDataRes(newIter, string(port.Lexeme()))
-}
-
-func parse(iter tokenIterator, fns ...func(tokenIterator) Result[tokenIterator]) Result[tokenIterator] {
-	functions := iterator.ListIterator(fns)
-	return iterator.Fold(Ok(iter), functions, FlatMap[tokenIterator, tokenIterator])
-}
-
-func keep[T any](pointer *T, fn func(tokenIterator) Result[parserData[T]]) func(tokenIterator) Result[tokenIterator] {
-	return func(iter tokenIterator) Result[tokenIterator] {
-		return Map(fn(iter),
-			func(data parserData[T]) tokenIterator {
-				*pointer = data.value
-				return data.iter
-			},
-		)
-	}
-}
-
-func skip[T any](fn func(tokenIterator) Result[parserData[T]]) func(tokenIterator) Result[tokenIterator] {
-	return func(iter tokenIterator) Result[tokenIterator] {
-		return Map(fn(iter),
-			func(data parserData[T]) tokenIterator {
-				return data.iter
-			},
-		)
-	}
-}
-
-func optional[T any](fn func(tokenIterator) Result[parserData[T]], expectedTokens ...[]Token) func(tokenIterator) Result[parserData[option.Option[T]]] {
-	return func(iter tokenIterator) Result[parserData[option.Option[T]]] {
-		var depth int32 = 1
-		expectedTokensList := iterator.ListIterator(expectedTokens)
-		isPresent := iterator.Fold(true, expectedTokensList, func(accum bool, expectedTokens []Token) bool {
-			if accum {
-				accum = peekToken(depth, expectedTokens...)(iter)
-				depth += 1
-			}
-			return accum
-		})
-
-		if isPresent {
-			return FlatMap(fn(iter),
-				func(data parserData[T]) Result[parserData[option.Option[T]]] {
-					return makeParserData(data.iter, option.Some(data.value))
-				},
-			)
-		} else {
-			return makeParserData(iter, option.None[T]())
-		}
-	}
-}
-
-func list[T any](fn func(tokenIterator) Result[parserData[T]], expectedTokens ...[]Token) func(tokenIterator) Result[parserData[[]T]] {
-	return func(iter tokenIterator) Result[parserData[[]T]] {
-		var out_list []T
-		for {
-			if res := optional(fn, expectedTokens...)(iter); res.IsOk() {
-				iter = res.Unwrap().iter
-				value := res.Unwrap().value
-				if value.IsSome() {
-					out_list = append(out_list, value.Unwrap())
-				} else {
-					return makeParserData(iter, out_list)
-				}
-			} else {
-				return Err[parserData[[]T]](res.UnwrapErr())
-			}
-		}
-	}
-}
-
-func matchToken(expectedTokens ...Token) func(tokenIterator) Result[parserData[TokenData]] {
-	return func(iter tokenIterator) Result[parserData[TokenData]] {
-		token := iter.Next().Unwrap()
-		return FlatMap(token, func(token TokenData) Result[parserData[TokenData]] {
-			for _, expectedToken := range expectedTokens {
-				if token.Token() == expectedToken {
-					return makeParserData(iter, token)
-				}
-			}
-			return makeParserError[TokenData](token, expectedTokens[0])
-		})
-	}
-}
-
-func peekToken(depth int32, expectedTokens ...Token) func(tokenIterator) bool {
-	return func(iter tokenIterator) bool {
-		token := iter.PeekNth(depth)
-		if !token.IsSome() {
-			return false
-		}
-
-		return Map(token.Unwrap(),
-			func(token TokenData) bool {
-				for _, expectedToken := range expectedTokens {
-					if token.Token() == expectedToken {
-						return true
-					}
-				}
-				return false
-			},
-		).OrElse(false)
-	}
 }

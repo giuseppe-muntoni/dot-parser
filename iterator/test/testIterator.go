@@ -26,7 +26,7 @@ func (iter *testIterator) Next() option.Option[rune] {
 }
 
 func testExpected[T comparable](t *testing.T, next option.Option[T], expected T) {
-	if !next.IsSome() || next.Unwrap() != expected {
+	if next.IsNone() || next.Unwrap() != expected {
 		t.Errorf("Expected %v, got %v", expected, next)
 	}
 }

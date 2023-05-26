@@ -20,7 +20,7 @@ func Fold[A any, T any](accumulator A, iter Iterator[T], fn func(A, T) A) A {
 
 func Consume[T any](iter Iterator[T]) {
 	for {
-		if !iter.Next().IsSome() {
+		if iter.Next().IsNone() {
 			return
 		}
 	}
@@ -30,7 +30,7 @@ func Last[T any](iter Iterator[T]) option.Option[T] {
 	var lastElement = option.None[T]()
 	for {
 		currentElement := iter.Next()
-		if !currentElement.IsSome() {
+		if currentElement.IsNone() {
 			return lastElement
 		} else {
 			lastElement = currentElement
