@@ -17,25 +17,25 @@ type AttributeMap map[string]string
 
 type Node struct {
 	ID         NodeID
-	attributes []AttributeMap
+	Attributes []AttributeMap
 }
 
 type NodeID struct {
-	name string
-	port option.Option[string]
+	Name string
+	Port option.Option[string]
 }
 
 func makeNodeID(name string, port option.Option[string]) NodeID {
 	return NodeID{
-		name: name,
-		port: port,
+		Name: name,
+		Port: port,
 	}
 }
 
 type Edge struct {
-	lnode      NodeID
-	rnode      NodeID
-	attributes []AttributeMap
+	Lnode      NodeID
+	Rnode      NodeID
+	Attributes []AttributeMap
 }
 
 type AttributeLevel uint8
