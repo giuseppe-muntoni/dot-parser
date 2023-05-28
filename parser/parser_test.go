@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func makeParser(input string) tokenIterator {
+func makeParser(input string) TokenIterator {
 	return makeTokenIterator(strings.NewReader(input))
 }
 
@@ -32,7 +32,7 @@ func TestParseNodeIdWithPort(t *testing.T) {
 	}
 
 	value := res.Unwrap().value
-	if value.name != "NodeId" || !value.port.IsSome() || value.port.Unwrap() != "PortName" {
+	if value.Name != "NodeId" || !value.Port.IsSome() || value.Port.Unwrap() != "PortName" {
 		t.Fatalf("Expected NodeId with name 'NodeId' and port 'PortName', found %v", value)
 	}
 }
@@ -46,7 +46,7 @@ func TestParseNodeIdWithoutPort(t *testing.T) {
 	}
 
 	value := res.Unwrap().value
-	if value.name != "NodeId" || value.port.IsSome() {
+	if value.Name != "NodeId" || value.Port.IsSome() {
 		t.Fatalf("Expected NodeId with name 'NodeId' without port, found %v", value)
 	}
 }
@@ -60,7 +60,7 @@ func TestParseAttribute(t *testing.T) {
 	}
 
 	attribute := res.Unwrap().value
-	if attribute.key != "first" || attribute.value != "second" {
+	if attribute.Key != "first" || attribute.Value != "second" {
 		t.Fatalf("Expected Attribute with key 'first' and value 'second', found %s", attribute)
 	}
 }
@@ -104,7 +104,7 @@ func TestParseNodeStatementWithAttributes(t *testing.T) {
 		t.Fatalf("Expected Node Statement, but got %v", val)
 	}
 
-	if nodeStmt.ID.name != "NodeId" || nodeStmt.ID.port.IsSome() {
+	if nodeStmt.ID.Name != "NodeId" || nodeStmt.ID.Port.IsSome() {
 		t.Fatalf("Expected NodeId with name NodeId and empty port, found %s", nodeStmt.ID)
 	}
 }

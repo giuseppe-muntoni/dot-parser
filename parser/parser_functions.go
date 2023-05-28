@@ -7,15 +7,15 @@ import (
 	. "dot-parser/result"
 )
 
-func parse(iter tokenIterator, fns ...func(tokenIterator) Result[tokenIterator]) Result[tokenIterator] {
+func parse(iter TokenIterator, fns ...func(TokenIterator) Result[TokenIterator]) Result[TokenIterator] {
 	functions := iterator.ListIterator(fns)
-	return iterator.Fold(Ok(iter), functions, FlatMap[tokenIterator, tokenIterator])
+	return iterator.Fold(Ok(iter), functions, FlatMap[TokenIterator, TokenIterator])
 }
 
-func keep[T any](pointer *T, fn func(tokenIterator) Result[parserData[T]]) func(tokenIterator) Result[tokenIterator] {
-	return func(iter tokenIterator) Result[tokenIterator] {
+func keep[T any](pointer *T, fn func(TokenIterator) Result[parserData[T]]) func(TokenIterator) Result[TokenIterator] {
+	return func(iter TokenIterator) Result[TokenIterator] {
 		return Map(fn(iter),
-			func(data parserData[T]) tokenIterator {
+			func(data parserData[T]) TokenIterator {
 				*pointer = data.value
 				return data.iter
 			},
@@ -23,18 +23,18 @@ func keep[T any](pointer *T, fn func(tokenIterator) Result[parserData[T]]) func(
 	}
 }
 
-func skip[T any](fn func(tokenIterator) Result[parserData[T]]) func(tokenIterator) Result[tokenIterator] {
-	return func(iter tokenIterator) Result[tokenIterator] {
+func skip[T any](fn func(TokenIterator) Result[parserData[T]]) func(TokenIterator) Result[TokenIterator] {
+	return func(iter TokenIterator) Result[TokenIterator] {
 		return Map(fn(iter),
-			func(data parserData[T]) tokenIterator {
+			func(data parserData[T]) TokenIterator {
 				return data.iter
 			},
 		)
 	}
 }
 
-func optional[T any](fn func(tokenIterator) Result[parserData[T]], expectedTokens ...[]Token) func(tokenIterator) Result[parserData[option.Option[T]]] {
-	return func(iter tokenIterator) Result[parserData[option.Option[T]]] {
+func optional[T any](fn func(TokenIterator) Result[parserData[T]], expectedTokens ...[]Token) func(TokenIterator) Result[parserData[option.Option[T]]] {
+	return func(iter TokenIterator) Result[parserData[option.Option[T]]] {
 		var depth int32 = 1
 		expectedTokensList := iterator.ListIterator(expectedTokens)
 		isPresent := iterator.Fold(true, expectedTokensList, func(accum bool, expectedTokens []Token) bool {
@@ -57,8 +57,8 @@ func optional[T any](fn func(tokenIterator) Result[parserData[T]], expectedToken
 	}
 }
 
-func list[T any](fn func(tokenIterator) Result[parserData[T]], expectedTokens ...[]Token) func(tokenIterator) Result[parserData[[]T]] {
-	return func(iter tokenIterator) Result[parserData[[]T]] {
+func list[T any](fn func(TokenIterator) Result[parserData[T]], expectedTokens ...[]Token) func(TokenIterator) Result[parserData[[]T]] {
+	return func(iter TokenIterator) Result[parserData[[]T]] {
 		var out_list []T
 		for {
 			if res := optional(fn, expectedTokens...)(iter); res.IsOk() {
@@ -76,8 +76,8 @@ func list[T any](fn func(tokenIterator) Result[parserData[T]], expectedTokens ..
 	}
 }
 
-func nonEmptyList[T any](fn func(tokenIterator) Result[parserData[T]], expectedTokens ...[]Token) func(tokenIterator) Result[parserData[[]T]] {
-	return func(iter tokenIterator) Result[parserData[[]T]] {
+func nonEmptyList[T any](fn func(TokenIterator) Result[parserData[T]], expectedTokens ...[]Token) func(TokenIterator) Result[parserData[[]T]] {
+	return func(iter TokenIterator) Result[parserData[[]T]] {
 		var out_list []T
 
 		if res := fn(iter); res.IsOk() {
@@ -104,8 +104,8 @@ func nonEmptyList[T any](fn func(tokenIterator) Result[parserData[T]], expectedT
 	}
 }
 
-func matchToken(expectedTokens ...Token) func(tokenIterator) Result[parserData[TokenData]] {
-	return func(iter tokenIterator) Result[parserData[TokenData]] {
+func matchToken(expectedTokens ...Token) func(TokenIterator) Result[parserData[TokenData]] {
+	return func(iter TokenIterator) Result[parserData[TokenData]] {
 		token := iter.Next().Unwrap()
 		return FlatMap(token, func(token TokenData) Result[parserData[TokenData]] {
 			for _, expectedToken := range expectedTokens {
@@ -118,8 +118,8 @@ func matchToken(expectedTokens ...Token) func(tokenIterator) Result[parserData[T
 	}
 }
 
-func peekToken(depth int32, expectedTokens ...Token) func(tokenIterator) bool {
-	return func(iter tokenIterator) bool {
+func peekToken(depth int32, expectedTokens ...Token) func(TokenIterator) bool {
+	return func(iter TokenIterator) bool {
 		token := iter.PeekNth(depth)
 		if token.IsNone() {
 			return false

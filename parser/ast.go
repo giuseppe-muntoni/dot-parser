@@ -3,10 +3,10 @@ package parser
 import "dot-parser/option"
 
 type Graph struct {
-	isStrict   bool
-	isDirect   bool
-	name       option.Option[string]
-	statements []Statement
+	IsStrict   bool
+	IsDirect   bool
+	Name       option.Option[string]
+	Statements []Statement
 }
 
 type Statement interface {
@@ -47,13 +47,13 @@ const (
 )
 
 type AttributeStmt struct {
-	level      AttributeLevel
-	attributes []AttributeMap
+	Level      AttributeLevel
+	Attributes []AttributeMap
 }
 
 type SingleAttribute struct {
-	key   string
-	value string
+	Key   string
+	Value string
 }
 
 func (n *Node) isStatement() bool            { return true }
@@ -70,12 +70,12 @@ func (attrs AttributeMap) String() string {
 }
 
 func (node NodeID) String() string {
-	return node.name + ":" + node.port.OrElse("/")
+	return node.Name + ":" + node.Port.OrElse("/")
 }
 
 func (node Node) String() string {
 	out_string := node.ID.String() + " "
-	for _, attributeMap := range node.attributes {
+	for _, attributeMap := range node.Attributes {
 		out_string += attributeMap.String()
 	}
 	return out_string

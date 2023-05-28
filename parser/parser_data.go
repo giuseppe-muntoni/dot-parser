@@ -8,9 +8,17 @@ import (
 	"io"
 )
 
-type tokenIterator iterator.MultiPeekableIterator[Result[TokenData]]
+type TokenIterator iterator.MultiPeekableIterator[Result[TokenData]]
 
-func makeTokenIterator(reader io.Reader) tokenIterator {
+func ParseFile(reader io.Reader) Result[Graph] {
+	iter := makeTokenIterator(reader)
+	result := parseGraph(iter)
+	return Map(result, func(res parserData[Graph]) Graph {
+		return res.value
+	})
+}
+
+func makeTokenIterator(reader io.Reader) TokenIterator {
 	lex := MakeLexer(reader)
 	iter := iterator.TakeWhile(lex, func(token Result[TokenData]) bool {
 		eofFound := false
@@ -56,18 +64,18 @@ func makeParserError[T any](token TokenData, expectedToken Token) Result[parserD
 
 type parserData[T any] struct {
 	value T
-	iter  tokenIterator
+	iter  TokenIterator
 }
 
-func makeParserData[T any](iter tokenIterator, value T) Result[parserData[T]] {
+func makeParserData[T any](iter TokenIterator, value T) Result[parserData[T]] {
 	return Ok(parserData[T]{
 		iter:  iter,
 		value: value,
 	})
 }
 
-func makeParserDataRes[T any](iter Result[tokenIterator], value T) Result[parserData[T]] {
-	return FlatMap(iter, func(iter tokenIterator) Result[parserData[T]] {
+func makeParserDataRes[T any](iter Result[TokenIterator], value T) Result[parserData[T]] {
+	return FlatMap(iter, func(iter TokenIterator) Result[parserData[T]] {
 		return makeParserData(iter, value)
 	})
 }
