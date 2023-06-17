@@ -47,16 +47,6 @@ func (opt Option[T]) Filter(predicate func(T) bool) Option[T] {
 	}
 }
 
-func Filter[T any](opt Option[T], predicate func(T) bool) Option[T] {
-	return FlatMap(opt, func(val T) Option[T] {
-		if predicate(val) {
-			return Some(val)
-		} else {
-			return None[T]()
-		}
-	})
-}
-
 func Take[T any](opt *Option[T]) Option[T] {
 	if (*opt).IsSome() {
 		copy := *opt
