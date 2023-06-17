@@ -28,7 +28,7 @@ func parseGraph(iter TokenIterator) Result[parserData[Graph]] {
 		return parse(iter,
 			keep(&name, optional(matchToken(ID), []Token{ID})),
 			skip(matchToken(OPEN_BRACE)),
-			keep(&stmts, nonEmptyList(parseStmtInList, []Token{ID, GRAPH, NODE, EDGE})),
+			keep(&stmts, list(parseStmtInList, []Token{ID, GRAPH, NODE, EDGE})),
 			skip(matchToken(CLOSE_BRACE)),
 			skip(matchToken(EOF)),
 		)

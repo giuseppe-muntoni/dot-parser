@@ -55,6 +55,10 @@ func TestColon(t *testing.T) {
 	testSingleToken(t, ":", lexer.COLON, "Expected Colon")
 }
 
+func TestComma(t *testing.T) {
+	testSingleToken(t, ",", lexer.COMMA, "Expected Comma")
+}
+
 func TestOpenSquareBracket(t *testing.T) {
 	testSingleToken(t, "[", lexer.OPEN_SQUARE_BRACKET, "Expected Open Square Bracket")
 }
@@ -65,10 +69,6 @@ func TestClosedSquareBracket(t *testing.T) {
 
 func TestEqual(t *testing.T) {
 	testSingleToken(t, "=", lexer.EQUAL, "Expected Equal")
-}
-
-func TestComma(t *testing.T) {
-	testSingleToken(t, ",", lexer.COMMA, "Expected Comma")
 }
 
 // Test two-character tokens
