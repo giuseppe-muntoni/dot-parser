@@ -16,6 +16,10 @@ func Ok[T any](value T) Result[T] {
 }
 
 func Err[T any](err error) Result[T] {
+	if err == nil {
+		panic("Please provide the error when creating an Err Result")
+	}
+
 	return Result[T]{err: err}
 }
 
@@ -28,7 +32,6 @@ func Make[T any](value T, err error) Result[T] {
 }
 
 // Methods
-
 func (res Result[T]) Get() (T, error) {
 	return res.value, res.err
 }

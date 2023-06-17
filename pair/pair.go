@@ -19,7 +19,7 @@ func Zip[L any, R any](first result.Result[L], second result.Result[R]) result.R
 	if first.IsErr() {
 		return result.Err[Pair[L, R]](first.UnwrapErr())
 	} else if second.IsErr() {
-		return result.Err[Pair[L, R]](first.UnwrapErr())
+		return result.Err[Pair[L, R]](second.UnwrapErr())
 	} else {
 		return result.Ok(NewPair(first.Unwrap(), second.Unwrap()))
 	}
