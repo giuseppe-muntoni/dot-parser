@@ -7,6 +7,8 @@ type BufferedIterator[T any] struct {
 	buffer   []T
 }
 
+//A Buffered Iterator implements the multi-peekable and peekable iterator interfaces from any basic iterator.
+//Note that while the peek operations do not advance the iterator position, they advance the internal iterator.
 func Buffered[T any](iter Iterator[T]) MultiPeekableIterator[T] {
 	return &BufferedIterator[T]{iterator: iter, buffer: make([]T, 0)}
 }

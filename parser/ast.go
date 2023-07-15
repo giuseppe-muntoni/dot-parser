@@ -2,6 +2,8 @@ package parser
 
 import "dot-parser/option"
 
+//Dot-Format Abstract Syntax Tree
+
 type Graph struct {
 	IsStrict   bool
 	IsDirect   bool

@@ -2,6 +2,7 @@ package option
 
 import "errors"
 
+// The Option type can either be a valid value of any given type or empty.
 type Option[T any] struct {
 	value   T
 	isValid bool

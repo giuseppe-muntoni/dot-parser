@@ -10,29 +10,13 @@ import (
 	"unicode"
 )
 
-type Position struct {
-	line   int
-	column int
-}
-
-func (pos Position) Line() int {
-	return pos.line
-}
-
-func (pos Position) Column() int {
-	return pos.column
-}
-
-func MakePosition(line int, column int) *Position {
-	return &Position{line: line, column: column}
-}
-
 type Lexer struct {
 	iter            iterator.PeekableIterator[rune]
 	startPosition   Position
 	currentPosition Position
 }
 
+// Create a Lexer from a io.Reader object, which allows to easly provide tokens from reading files.
 func MakeLexer(reader io.Reader) iterator.Iterator[result.Result[TokenData]] {
 	lexer := &Lexer{
 		iter:            nil,

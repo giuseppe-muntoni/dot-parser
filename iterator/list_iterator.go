@@ -15,6 +15,7 @@ func (iter *listIterator[T]) Next() Option[T] {
 	return next
 }
 
+//Construct an Iterator from a list of items.
 func ListIterator[T any](list []T) Iterator[T] {
 	return &listIterator[T]{
 		list:     list,

@@ -6,6 +6,7 @@ import (
 	"io"
 )
 
+// A peekable iterator which allows to read runes from a bufio.Reader buffer.
 type lexerIterator struct {
 	currentPosition *Position
 	reader          *bufio.Reader

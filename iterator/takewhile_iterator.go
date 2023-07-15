@@ -8,6 +8,7 @@ type TakeWhileIterator[T any] struct {
 	finished  bool
 }
 
+//Wraps an iterator and returns all the elements which satisfy a certain predicate.
 func TakeWhile[T any](iter Iterator[T], predicate func(T) bool) Iterator[T] {
 	return &TakeWhileIterator[T]{
 		iterator:  BufferedIterator[T]{iterator: iter},

@@ -8,6 +8,7 @@ import (
 type Token int
 type Lexeme string
 
+// Dot-Format Tokens
 const (
 	// Single-char tokens
 	OPEN_BRACE Token = iota
@@ -37,6 +38,7 @@ const (
 	EOF
 )
 
+// Dot-Format Keywords
 var keywords = map[string]Token{
 	"graph":    GRAPH,
 	"digraph":  DIGRAPH,
@@ -46,6 +48,24 @@ var keywords = map[string]Token{
 	"subgraph": SUBGRAPH,
 }
 
+type Position struct {
+	line   int
+	column int
+}
+
+func (pos Position) Line() int {
+	return pos.line
+}
+
+func (pos Position) Column() int {
+	return pos.column
+}
+
+func MakePosition(line int, column int) *Position {
+	return &Position{line: line, column: column}
+}
+
+// Data returned from the Lexer when querying the next token.
 type TokenData struct {
 	position Position
 	token    Token
@@ -72,6 +92,7 @@ func (token TokenData) Lexeme() Lexeme {
 	return token.lexeme
 }
 
+// Error data returned from the Lexer.
 type TokenError struct {
 	position Position
 	message  string

@@ -5,6 +5,7 @@ import (
 	"errors"
 )
 
+// The Result type can either be a valid value of any given type or an error.
 type Result[T any] struct {
 	value T
 	err   error

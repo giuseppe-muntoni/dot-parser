@@ -15,6 +15,8 @@ func (pair Pair[L, R]) Get() (L, R) {
 	return pair.First, pair.Second
 }
 
+//Zips two Result objects in a Result containing a pair of the values contained in both input results.
+//If either of the two Result objects is an Error Result, then the error is propagated.
 func Zip[L any, R any](first result.Result[L], second result.Result[R]) result.Result[Pair[L, R]] {
 	if first.IsErr() {
 		return result.Err[Pair[L, R]](first.UnwrapErr())
